@@ -48,6 +48,7 @@ from .warehouse.schema import (
 )
 from .webhook.schema import WebhookMutations, WebhookQueries
 from .webhook.subscription_types import WEBHOOK_TYPES_MAP, Subscription
+from artist.schema import ArtistQueries, ArtistMutations
 
 API_PATH = SimpleLazyObject(lambda: reverse("api"))
 
@@ -75,6 +76,8 @@ class Query(
     TranslationQueries,
     WarehouseQueries,
     WebhookQueries,
+    ArtistQueries,
+    graphene.ObjectType,
 ):
     pass
 
@@ -104,6 +107,8 @@ class Mutation(
     TaxMutations,
     WarehouseMutations,
     WebhookMutations,
+    ArtistMutations,
+    graphene.ObjectType,
 ):
     pass
 

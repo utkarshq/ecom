@@ -1,3 +1,5 @@
+Below are the details of the original project, since the current external app is in developement, the updates are in the readme.md file in main/Aritist
+
 <div align="center" width="100px">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://user-images.githubusercontent.com/4006792/214640818-fd4de9e6-bdee-47f0-ae66-e69ee9ec84bb.png">

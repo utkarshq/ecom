@@ -1,5 +1,5 @@
 from functools import partial
-
+import graphene
 import graphql
 from django.urls import reverse
 from django.utils.functional import SimpleLazyObject

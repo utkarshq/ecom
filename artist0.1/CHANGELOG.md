@@ -10,10 +10,16 @@
 - Referral system for artists to generate unique links for their artworks
 - Admin interface for managing artists, tiers, and commission rates
 - Celery task for periodic recalculation of artist tiers
+- Extensive permission system for different staff roles
+- Custom permissions for approving/rejecting artists, editing commission rates, viewing sales data, and managing tiers
+- Permission-based access control in admin actions and views
+- Comprehensive commission calculation system with rules based on sale type, product type, and artist tier
 
 ### Changed
 - Extended Saleor's Order model to include referral information
 - Updated admin views to include new artist management features
+- Refactored admin actions to check for specific permissions before execution
+- Modified views to use permission decorators for access control
 
 ### Fixed
 - Improved performance of commission calculations with database indexing

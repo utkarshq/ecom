@@ -1,0 +1,7 @@
+# ... other dependencies ...
+django
+django-celery-beat
+django-celery-results
+celery
+saleor
+# ... other dependencies ...

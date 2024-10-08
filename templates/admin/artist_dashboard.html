@@ -1,0 +1,38 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<h1>{% trans "Artist Dashboard" %}</h1>
+
+<div class="module">
+    <h2>{% trans "Overview" %}</h2>
+    <ul>
+        <li>{% trans "Total Artists" %}: {{ total_artists }}</li>
+        <li>{% trans "Pending Applications" %}: {{ pending_applications }}</li>
+        <li>{% trans "Total Sales" %}: ${{ total_sales|floatformat:2 }}</li>
+    </ul>
+</div>
+
+<div class="module">
+    <h2>{% trans "Tier Configuration" %}</h2>
+    <p>{% trans "Current system" %}: {% if tier_configuration.use_percentile %}{% trans "Percentile" %}{% else %}{% trans "Sales" %}{% endif %}</p>
+    <ul>
+        <li>{% trans "New Threshold" %}: {{ tier_configuration.new_threshold }}</li>
+        <li>{% trans "Silver Threshold" %}: {{ tier_configuration.silver_threshold }}</li>
+        <li>{% trans "Gold Threshold" %}: {{ tier_configuration.gold_threshold }}</li>
+        <li>{% trans "Platinum Threshold" %}: {{ tier_configuration.platinum_threshold }}</li>
+    </ul>
+</div>
+
+<div class="module">
+    <h2>{% trans "Actions" %}</h2>
+    <form method="post" action="{% url 'admin:recalculate_tiers' %}">
+        {% csrf_token %}
+        <input type="submit" value="{% trans 'Recalculate Tiers' %}">
+    </form>
+    <form method="post" action="{% url 'admin:update_tiers' %}">
+        {% csrf_token %}
+        <input type="submit" value="{% trans 'Update Tiers' %}">
+    </form>
+</div>
+{% endblock %}

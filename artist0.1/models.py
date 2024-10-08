@@ -4,7 +4,12 @@ from django.utils import timezone
 from saleor.product.models import ProductType
 from django.db.models import Sum
 from saleor.product.models import Product
-
+from django.contrib.auth.models import User
+import uuid
+from django.db import models
+from django.contrib.auth import get_user_model
+from django.utils import timezone
+from saleor.product.models import Product
 '''
 Contains the database models for the Artist app, 
 likely including Artist, TierSettings, and CommissionRate models, 
@@ -41,6 +46,31 @@ class CommissionRate(models.Model):
         return f"{self.product_type} - {'Referral' if self.is_referral else 'Standard'}"
 
 class Artist(models.Model):
+    """
+    Represents an artist in the system.
+
+    This model stores information about artists, including their application status,
+    personal details, and sales performance. It is linked to the User model and tracks
+    the artist's progression through the application process and their tier status.
+
+    Attributes:
+        user (User): One-to-one relationship with the User model.
+        legal_name (str): The artist's legal name, used for official purposes.
+        portfolio_url (str): URL to the artist's portfolio, showcasing their work.
+        bio (str): Artist's biography, providing background information.
+        social_links (dict): JSON field storing the artist's social media links.
+        tier (TierSettings): The artist's current tier based on sales performance.
+        application_status (str): Current status of the artist's application process.
+        application_date (datetime): Date when the artist initially applied.
+        approval_date (datetime): Date when the artist was approved (if applicable).
+        total_sales (Decimal): Total sales amount for the artist, used for tier calculation.
+        legal_documents (File): Uploaded legal documents for verification purposes.
+
+    Methods:
+        update_tier(): Updates the artist's tier based on their sales performance.
+        __str__(): Returns a string representation of the artist (their legal name).
+    """
+
     APPLICATION_STATUS_CHOICES = [
         ('PENDING', 'Pending'),
         ('LEGAL_REVIEW', 'Legal Review'),
@@ -59,11 +89,30 @@ class Artist(models.Model):
     approval_date = models.DateTimeField(null=True, blank=True)
     total_sales = models.DecimalField(max_digits=10, decimal_places=2, default=0, db_index=True)
     legal_documents = models.FileField(upload_to='artist_legal_docs/', null=True, blank=True)
+    contract_document = models.FileField(upload_to='artist_documents/', null=True, blank=True)
+    identification_document = models.FileField(upload_to='artist_documents/', null=True, blank=True)
+    bank_details_document = models.FileField(upload_to='artist_documents/', null=True, blank=True)
 
     def __str__(self):
         return self.legal_name
 
     def update_tier(self):
+        """
+        Updates the artist's tier based on their total sales in the last 365 days.
+
+        This method calculates the total sales for the artist in the past year and
+        assigns a tier based on predefined thresholds. It should be called periodically
+        or after significant sales events to keep the tier status current.
+
+        The tier thresholds are:
+        - NEW: Less than $10,000 in sales
+        - SILVER: $10,000 - $49,999 in sales
+        - GOLD: $50,000 - $99,999 in sales
+        - PLATINUM: $100,000 or more in sales
+
+        Note: This method assumes that the TierSettings model has been properly configured
+        with the correct tier thresholds.
+        """
         # Calculate total sales in the last 365 days
         one_year_ago = timezone.now() - timezone.timedelta(days=365)
         total_sales = self.user.orders.filter(created_at__gte=one_year_ago).aggregate(
@@ -172,22 +221,24 @@ class TierSettings(models.Model):
     def __str__(self):
         return f"{self.tier} - {self.percentile}% - {self.commission_rate}%"
 
-import uuid
-from django.db import models
-from django.contrib.auth import get_user_model
-from django.utils import timezone
-from saleor.product.models import Product
 
 User = get_user_model()
 
 class ReferralLink(models.Model):
-    artist = models.ForeignKey(Artist, on_delete=models.CASCADE, related_name='referral_links')
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    code = models.UUIDField(default=uuid.uuid4, editable=False, unique=True, db_index=True)
+    artist = models.ForeignKey(Artist, on_delete=models.CASCADE)
+    product = models.ForeignKey('product.Product', on_delete=models.CASCADE)
+    code = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
 
-    def __str__(self):
-        return f"{self.artist.legal_name} - {self.product.name} - {self.code}"
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timezone.timedelta(days=7)
+        super().save(*args, **kwargs)
+
+    @property
+    def is_valid(self):
+        return timezone.now() < self.expires_at
 
 class HistoricalCommissionRate(models.Model):
     artist = models.ForeignKey(Artist, on_delete=models.CASCADE)
@@ -197,3 +248,29 @@ class HistoricalCommissionRate(models.Model):
 
     class Meta:
         get_latest_by = 'effective_from'
+
+class TierConfiguration(models.Model):
+    use_percentile = models.BooleanField(default=False)
+    new_threshold = models.DecimalField(max_digits=10, decimal_places=2)
+    silver_threshold = models.DecimalField(max_digits=10, decimal_places=2)
+    gold_threshold = models.DecimalField(max_digits=10, decimal_places=2)
+    platinum_threshold = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"Tier Configuration ({'Percentile' if self.use_percentile else 'Sales'})"
+
+### Audit Log ###
+
+class AuditLog(models.Model):
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    action = models.CharField(max_length=255)
+    model_name = models.CharField(max_length=100)
+    object_id = models.PositiveIntegerField(null=True, blank=True)
+    details = models.TextField(blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user} - {self.action} - {self.timestamp}"
+
+    class Meta:
+        ordering = ['-timestamp']

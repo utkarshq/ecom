@@ -55,3 +55,24 @@ def assign_user_to_group(user, group_name):
 def initialize_permissions():
     create_permissions()
     create_groups_with_permissions()
+
+def create_custom_permissions():
+    custom_permissions = [
+        ('can_approve_artists', 'Can approve artist applications'),
+        ('can_reject_artists', 'Can reject artist applications'),
+        ('can_edit_commission_rates', 'Can edit commission rates'),
+        ('can_view_sales_data', 'Can view sales data'),
+        ('can_manage_tiers', 'Can manage artist tiers'),
+    ]
+
+    for codename, name in custom_permissions:
+        Permission.objects.get_or_create(
+            codename=codename,
+            name=name,
+            content_type=ContentType.objects.get_for_model(Artist),
+        )
+
+def create_all_permissions():
+    create_permissions()
+    create_custom_permissions()
+    create_groups_with_permissions()

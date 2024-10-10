@@ -14,23 +14,32 @@ from saleor.product.models import Product
 from django.utils import timezone
 import random
 import string
+from django.db.models import Sum
 
 User = get_user_model()
 
 class TierConfiguration(models.Model):
-    tier = models.CharField(max_length=10, choices=(
+    TIER_CHOICES = (
         ('NEW', 'New'),
-        ('SILVER', 'Silver'),
-        ('GOLD', 'Gold'),
-        ('PLATINUM', 'Platinum'),
-    ), unique=True)
+        ('EMERGING', 'Emerging'),
+        ('POPULAR', 'Popular'),
+        ('FAMOUS', 'Famous'),
+    )
+    tier = models.CharField(max_length=10, choices=TIER_CHOICES, unique=True)
+    tier_level = models.PositiveSmallIntegerField(default=0)
     use_percentile = models.BooleanField(default=False)
-    percentile = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    sales_threshold = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(0)])
+    threshold = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(0)])
     commission_rate = models.DecimalField(max_digits=5, decimal_places=2)
+    tier_info = models.TextField(blank=True)
+    tier_perks = models.JSONField(default=list, blank=True)
 
     def __str__(self):
-        return f"{self.tier} - {self.percentile}% - {self.sales_threshold} - {self.commission_rate}%"
+        threshold_type = "Percentile" if self.use_percentile else "Sales"
+        return f"{self.tier} - {threshold_type}: {self.threshold} - Commission: {self.commission_rate}%"
+
+    class Meta:
+        ordering = ['tier_level']
+        permissions = [('can_view_commission_wallet', 'Can view commission wallet')]
 
 class Artist(models.Model):
     """
@@ -67,9 +76,9 @@ class Artist(models.Model):
 
     TIER_CHOICES = (
         ('NEW', 'New'),
-        ('SILVER', 'Silver'),
-        ('GOLD', 'Gold'),
-        ('PLATINUM', 'Platinum'),
+        ('EMERGING', 'Emerging'),
+        ('POPULAR', 'Popular'),
+        ('FAMOUS', 'Famous'),
     )
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='artist_profile')
@@ -77,13 +86,17 @@ class Artist(models.Model):
     portfolio_url = models.URLField(blank=True)
     bio = models.TextField(blank=True)
     social_links = models.JSONField(blank=True, default=dict)
-    tier = models.ForeignKey(TierConfiguration, on_delete=models.SET_NULL, null=True, blank=True, related_name='artists')
+    tier = models.ForeignKey(TierConfiguration, on_delete=models.SET_NULL, null=True, blank=True, related_name='artists', default=TierConfiguration.objects.get(tier='NEW').id)
     application_status = models.CharField(max_length=10, choices=APPLICATION_STATUS_CHOICES, default='PENDING')
     application_date = models.DateTimeField(auto_now_add=True)
     approval_date = models.DateTimeField(null=True, blank=True)
     total_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_commission = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     legal_documents = models.FileField(upload_to='artist_legal_documents', blank=True)
+    artworks = models.ManyToManyField('Artwork', related_name='artists', blank=True)
+    total_commission = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    tier_update_date = models.DateTimeField(null=True, blank=True)
+    commission_wallet = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     def __str__(self):
         return self.legal_name
@@ -110,6 +123,10 @@ class Artist(models.Model):
     def get_total_referral_commissions(self):
         """Returns the total amount of commissions earned from referrals."""
         return self.referral_link_set.filter(used=True).aggregate(Sum('commission'))['commission__sum'] or 0
+
+    def recalculate_total_sales(self):
+        self.total_sales = self.user.orders.aggregate(Sum('total_gross_amount'))['total_gross_amount__sum'] or 0
+        self.save()
 
 class Artwork(models.Model):
     artist = models.ForeignKey(Artist, on_delete=models.CASCADE, related_name='artwork_set')
@@ -179,18 +196,35 @@ class Commission(models.Model):
     paid_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=(
         ('PENDING', 'Pending'),
+        ('CREDITED', 'Credited'),
         ('PAID', 'Paid'),
         ('CANCELLED', 'Cancelled'),
     ), default='PENDING')
 
     def __str__(self):
-        return f"Commission for {self.artist.username} - Order Line {self.order_line.id}"
+        return f"Commission for {self.artist.username} - {self.amount}"
 
 class CommissionSettings(models.Model):
-    commission_period = models.IntegerField(default=14, validators=[MinValueValidator(1)])
+    commission_period = models.PositiveIntegerField(default=14)
     referral_link_commission_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
-    product_type_commissions = models.JSONField(default=dict, blank=True)
-    tier_commissions = models.JSONField(default=dict, blank=True)
+    product_type_commissions = models.JSONField(default=dict)  # Store as {product_type_id: rate}
+    tier_commissions = models.JSONField(default=dict)  # Store as {tier_name: rate}
+    tier_update_frequency = models.PositiveIntegerField(default=30, help_text="Number of days between tier updates")
 
     def __str__(self):
-        return "Commission Settings"
+        return f"Commission Period: {self.commission_period} days"
+
+class ReferralRate(models.Model):
+    product_type = models.ForeignKey(ProductType, on_delete=models.CASCADE)
+    rate = models.DecimalField(max_digits=5, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.product_type.name} - {self.rate}%"
+
+class CommissionRate(models.Model):
+    name = models.CharField(max_length=255)
+    rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    product_type = models.OneToOneField(ProductType, on_delete=models.CASCADE, null=True, blank=True)
+
+    def __str__(self):
+        return self.name

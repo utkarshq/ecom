@@ -132,9 +132,13 @@ CELERY_TIMEZONE = 'UTC'
 CELERY_BEAT_SCHEDULE = {
     'update_artist_tiers': {
         'task': 'artist.tasks.update_artist_tiers',
-        'schedule': 3600,  # Run every hour
+        'schedule': crontab(hour=0, minute=0),  # Run daily at midnight
     },
 }
 
 # Saleor settings
 SALEOR_SITE_NAME = 'Artist App'
+
+REST_FRAMEWORK = {
+    'EXCEPTION_HANDLER': 'artist.exception_handlers.artist_exception_handler'
+}

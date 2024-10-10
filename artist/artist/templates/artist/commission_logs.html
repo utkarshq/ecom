@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Commission Logs for {{ artist.legal_name }}</h1>
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Order</th>
+            <th>Amount</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for commission in commissions %}
+        <tr>
+            <td>{{ commission.created_at|date:"Y-m-d H:i" }}</td>
+            <td>{{ commission.order_line.order.id }}</td>
+            <td>${{ commission.amount }}</td>
+            <td>{{ commission.get_status_display }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="4">No commission records found.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

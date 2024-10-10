@@ -1,10 +1,12 @@
 from celery import shared_task
 from .models import Artist
-from .services import TierManager
+from ..services.tier import TierService
+from .services import TierService
 
 @shared_task
 def update_artist_tiers():
+    tier_service = TierService()
     artists = Artist.objects.all()
-    tier_manager = TierManager()
     for artist in artists:
-        tier_manager.update_tier(artist)
+        artist.recalculate_total_sales()
+        tier_service.update_tier(artist)

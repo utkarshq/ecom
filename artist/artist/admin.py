@@ -12,7 +12,7 @@ from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 from .forms import ArtworkForm, ArtistApplicationForm, ArtistLegalDocumentsForm
 from .utils import create_artwork, update_artwork, log_action
-from .services import CommissionCalculator, TierManager, generate_referral_link
+from .services import CommissionCalculator, TierManager, generate_referral_link, TierService
 from saleor.product.models import Product
 from django.http import HttpResponseServerError
 from .exceptions import ArtistNotFoundException, ArtworkNotFoundException, InvalidCommissionRateError
@@ -53,17 +53,6 @@ class ArtistAdmin(BaseArtistAdminAction):
             log_action(request.user, 'Rejected application', 'Artist', artist.id)
     reject_application.short_description = "Reject selected applications"
 
-    def recalculate_sales_and_commission(self, request, queryset):
-        if not request.user.has_perm('artist.can_manage_commissions'):
-            self.message_user(request, "You don't have permission to recalculate sales and commissions.")
-            return
-        for artist in queryset:
-            artist.total_sales = artist.user.orders.aggregate(Sum('total_gross_amount'))['total_gross_amount__sum'] or 0
-            artist.total_commission = artist.user.commissions.filter(status='PAID').aggregate(Sum('amount'))['amount__sum'] or 0
-            artist.save()
-            self.message_user(request, f"Sales and commissions recalculated for {artist.legal_name}")
-    recalculate_sales_and_commission.short_description = "Recalculate sales and commissions"
-
     def generate_referral_links(self, request, queryset):
         if not request.user.has_perm('artist.can_manage_commissions'):
             self.message_user(request, "You don't have permission to generate referral links.")
@@ -92,6 +81,17 @@ class ArtistAdmin(BaseArtistAdminAction):
             log_action(request.user, 'Approved application', 'Artist', artist.id)
     final_approval.short_description = "Final approval"
 
+    def recalculate_sales_and_commission(self, request, queryset):
+        if not request.user.has_perm('artist.can_approve_artists'):
+            self.message_user(request, "You don't have permission to recalculate sales and commission.")
+            return
+        tier_service = TierService()
+        for artist in queryset:
+            artist.recalculate_total_sales()
+            tier_service.update_tier(artist)
+            log_action(request.user, 'Recalculated sales and updated tier', 'Artist', artist.id)
+    recalculate_sales_and_commission.short_description = "Recalculate sales and update tier for selected artists"
+
 @admin.register(TierConfiguration)
 class TierConfigurationAdmin(admin.ModelAdmin):
     list_display = ('tier', 'percentile', 'commission_rate')
@@ -105,35 +105,25 @@ class CommissionAdmin(admin.ModelAdmin):
     list_display = ('artist', 'order_line', 'amount', 'created_at', 'paid_at', 'status')
     list_filter = ('status',)
     search_fields = ('artist__username', 'order_line__order__id')
-    actions = ['pay_commission', 'cancel_commission']
+    actions = ['credit_commission', 'cancel_commission']
 
-    def pay_commission(self, request, queryset):
+    def credit_commission(self, request, queryset):
         if not request.user.has_perm('artist.can_manage_commissions'):
-            self.message_user(request, "You don't have permission to pay commissions.")
+            self.message_user(request, "You don't have permission to credit commissions.")
             return
-        for commission in queryset:
-            if commission.status == 'PENDING':
-                commission.status = 'PAID'
-                commission.paid_at = timezone.now()
-                commission.save()
-                log_action(request.user, 'Paid commission', 'Commission', commission.id)
-            else:
-                self.message_user(request, f"Commission {commission.id} is not in pending status.")
-    pay_commission.short_description = "Pay selected commissions"
+        commission_calculator = CommissionCalculator()
+        with transaction.atomic():
+            for commission in queryset:
+                if commission.status == 'PENDING':
+                    commission_calculator.credit_commission_to_wallet(commission.artist, commission.amount)
+                    commission.status = 'CREDITED'
+                    commission.save()
+                    self.message_user(request, f"Commission {commission.id} has been credited to {commission.artist.legal_name}'s wallet.")
+                else:
+                    self.message_user(request, f"Commission {commission.id} is not in pending status.")
+    credit_commission.short_description = "Credit selected commissions to artist's wallet"
 
-    def cancel_commission(self, request, queryset):
-        if not request.user.has_perm('artist.can_manage_commissions'):
-            self.message_user(request, "You don't have permission to cancel commissions.")
-            return
-        for commission in queryset:
-            if commission.status == 'PENDING':
-                commission.status = 'CANCELLED'
-                commission.save()
-                log_action(request.user, 'Cancelled commission', 'Commission', commission.id)
-            else:
-                self.message_user(request, f"Commission {commission.id} is not in pending status.")
-    cancel_commission.short_description = "Cancel selected commissions"
-
+    # Keep the existing cancel_commission method
 @admin.register(CommissionSettings)
 class CommissionSettingsAdmin(admin.ModelAdmin):
     list_display = ('commission_period', 'referral_link_commission_rate')

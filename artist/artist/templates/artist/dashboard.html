@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="artist-dashboard">
+    <h1>Welcome, {{ artist.legal_name }}</h1>
+
+    <div class="dashboard-section">
+        <h2>Your Artworks</h2>
+        <a href="{% url 'artwork_list' %}" class="btn btn-primary">View All Artworks</a>
+        <a href="{% url 'artwork_create' %}" class="btn btn-success">Add New Artwork</a>
+    </div>
+
+    <div class="dashboard-section">
+        <h2>Sales Report</h2>
+        <a href="{% url 'sales_report' %}" class="btn btn-info">View Detailed Sales Report</a>
+        <div class="sales-summary">
+            <p>Total Sales: ${{ total_sales }}</p>
+            <p>This Month's Sales: ${{ this_month_sales }}</p>
+        </div>
+    </div>
+
+    <div class="dashboard-section">
+        <h2>Commissions</h2>
+        <a href="{% url 'commission_logs' %}" class="btn btn-info">View Commission Logs</a>
+        <div class="commission-summary">
+            <p>Total Commissions: ${{ total_commissions }}</p>
+            <p>Pending Commissions: ${{ pending_commissions }}</p>
+            <p>Available for Payout: ${{ available_for_payout }}</p>
+        </div>
+    </div>
+
+    <div class="dashboard-section">
+        <h2>Your Tier</h2>
+        <p>Current Tier: {{ artist.tier.tier }}</p>
+        <p>Commission Rate: {{ artist.tier.commission_rate }}%</p>
+        <a href="{% url 'tier_details' %}" class="btn btn-secondary">View Tier Details</a>
+    </div>
+
+    <div class="dashboard-section">
+        <h2>Referral Links</h2>
+        <a href="{% url 'referral_links' %}" class="btn btn-primary">Manage Referral Links</a>
+    </div>
+
+    <div class="dashboard-section">
+        <h2>Account Settings</h2>
+        <a href="{% url 'artist_profile' %}" class="btn btn-secondary">Edit Profile</a>
+        <a href="{% url 'artist_legal_documents' %}" class="btn btn-secondary">Update Legal Documents</a>
+    </div>
+
+    {% if artist.application_status == 'PENDING' %}
+    <div class="dashboard-section alert alert-info">
+        <h2>Application Status</h2>
+        <p>Your application is currently under review. We'll notify you once it's been processed.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/artist_dashboard.js' %}"></script>
+{% endblock %}

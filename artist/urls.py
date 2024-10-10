@@ -12,4 +12,5 @@ urlpatterns = [
     path('application_status/', views.application_status, name='application_status'),
     path('upload_legal_documents/', views.upload_legal_documents, name='upload_legal_documents'),
     path('sales_report/', views.sales_report, name='sales_report'),
+    path('commission_logs/', views.commission_logs, name='commission_logs'),
 ]

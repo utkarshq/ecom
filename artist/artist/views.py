@@ -5,14 +5,14 @@ from django.utils import timezone
 from .models import Artist, ReferralLink, Artwork, Commission
 from .forms import ArtworkForm, ArtistApplicationForm, ArtistLegalDocumentsForm
 from .utils import create_artwork, update_artwork, log_action
-from .services import CommissionCalculator, TierManager, generate_referral_link
+from .services import CommissionCalculator, TierService, ReferralLinkService
 from saleor.product.models import Product
 from django.http import HttpResponseServerError
-from .exceptions import ArtistNotFoundException, ArtworkNotFoundException, InvalidCommissionRateError
+from ..exceptions import ArtistNotFoundException, ArtworkNotFoundException, InvalidCommissionRateError
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Sum
 from django.db.models.functions import TruncMonth
-from .dashboard_utils import get_dashboard_data
+from ..dashboard_utils import get_dashboard_data
 from django.contrib.auth.decorators import permission_required
 
 @login_required
@@ -184,9 +184,10 @@ def sales_report(request):
         artist = Artist.objects.get(user=request.user)
     except Artist.DoesNotExist:
         raise ArtistNotFoundException("Artist profile not found for this user.")
-
-    orders = artist.user.orders.annotate(month=TruncMonth('created_at')).values('month').annotate(total_sales=Sum('total_gross_amount')).order_by('month')
-
+    try:
+        orders = artist.user.orders.annotate(month=TruncMonth('created_at')).values('month').annotate(total_sales=Sum('total_gross_amount')).order_by('month')
+    except Exception as e:
+        return HttpResponseServerError(f"An error occurred: {str(e)}")
     context = {
         'artist': artist,
         'orders': orders,
@@ -202,22 +203,6 @@ def artist_dashboard(request):
     return render(request, 'artist/artist_dashboard.html', context)
 
 @permission_required('artist.can_manage_commissions')
-def pay_commission(request, commission_id):
-    commission = get_object_or_404(Commission, pk=commission_id)
-    if commission.status != 'PENDING':
-        raise PermissionDenied("You can only pay pending commissions.")
-
-    if request.method == 'POST':
-        commission.status = 'PAID'
-        commission.paid_at = timezone.now()
-        commission.save()
-        log_action(request.user, 'Paid commission', 'Commission', commission.id)
-        return redirect('admin:artist_commission_changelist')
-
-    context = {
-        'commission': commission,
-    }
-    return render(request, 'artist/pay_commission.html', context)
 
 @permission_required('artist.can_manage_commissions')
 def reset_artist_commissions(request, artist_id):
@@ -236,3 +221,33 @@ def reset_artist_commissions(request, artist_id):
         'artist': artist,
     }
     return render(request, 'artist/reset_artist_commissions.html', context)
+
+@login_required
+def commission_logs(request):
+    try:
+        artist = Artist.objects.get(user=request.user)
+    except Artist.DoesNotExist:
+        raise ArtistNotFoundException("Artist profile not found for this user.")
+
+    commissions = Commission.objects.filter(artist=artist).order_by('-created_at')
+    
+    context = {
+        'artist': artist,
+        'commissions': commissions,
+    }
+    return render(request, 'artist/commission_logs.html', context)
+
+@login_required
+@permission_required('artist.can_view_commission_wallet', raise_exception=True)
+def commission_wallet(request):
+    try:
+        artist = Artist.objects.get(user=request.user)
+    except Artist.DoesNotExist:
+        raise ArtistNotFoundException("Artist profile not found for this user.")
+    
+    context = {
+        'artist': artist,
+        'wallet_balance': artist.commission_wallet,
+        'recent_commissions': Commission.objects.filter(artist=artist, status='CREDITED').order_by('-paid_at')[:10]
+    }
+    return render(request, 'artist/commission_wallet.html', context)

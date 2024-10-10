@@ -264,6 +264,7 @@ INSTALLED_APPS = [
     "django_celery_beat",
     # Local apps
     "saleor.permission",
+    "artist",
     "saleor.auth",
     "saleor.plugins",
     "saleor.account",

@@ -5,14 +5,16 @@ from django.utils import timezone
 from .models import Artist, ReferralLink, Artwork, Commission
 from .forms import ArtworkForm, ArtistApplicationForm, ArtistLegalDocumentsForm
 from .utils import create_artwork, update_artwork, log_action
-from .services import CommissionCalculator, TierService, ReferralLinkService
+from artist.services.commission import CommissionService
+from artist.services.commission import TierService
+from artist.services.commission import ReferralLinkService
 from saleor.product.models import Product
 from django.http import HttpResponseServerError
 from ..exceptions import ArtistNotFoundException, ArtworkNotFoundException, InvalidCommissionRateError
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Sum
 from django.db.models.functions import TruncMonth
-from ..dashboard_utils import get_dashboard_data
+from artist.artist.utils.dashboard_utils import get_dashboard_data
 from django.contrib.auth.decorators import permission_required
 
 @login_required

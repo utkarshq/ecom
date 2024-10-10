@@ -1,7 +1,8 @@
 from django.core.management.base import BaseCommand
 from django.db.models import Sum
-from artist.models import Artist, TierConfiguration
+from artist.models import Artist, TierConfiguration 
 from saleor.order.models import Order
+from artist.services. import TierService
 
 class Command(BaseCommand):
     help = 'Recalculate artist tiers based on sales or percentiles'

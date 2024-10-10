@@ -15,7 +15,7 @@ def get_artist_orders(artist: Artist) -> list[Order]:
     return list(Order.objects.filter(user=artist.user))
 
 def calculate_commission(order_line: OrderLine, artist: Artist) -> Decimal:
-    commission_calculator = CommissionCalculator()
+    commission_calculator = CommissionService()
     return commission_calculator.calculate_commission(order_line, artist)
 
 def log_action(user: User, action: str, model_name: str, object_id: int, details: str = ''):
@@ -25,7 +25,7 @@ def log_action(user: User, action: str, model_name: str, object_id: int, details
         content_type_id=content_type.pk,
         object_id=object_id,
         object_repr=f"Artist: {Artist.objects.get(id=object_id).legal_name}",
-        action_flag=LogEntry.CHANGE,
+        action_flag=LogEntry.ACTION_FLAG_CHANGE,
         change_message=f"{action} - {details}"
     )
 

@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from artist.models import Artist, CommissionSettings
-from artist.services import TierManager
+from artist.services import TierService
 
 class Command(BaseCommand):
     help = 'Update artist tiers based on the configured frequency'

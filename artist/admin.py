@@ -1,8 +1,10 @@
 from django.contrib import admin
-from .models import Artist, TierConfiguration, ReferralLink, Commission, CommissionSettings
-from .services import CommissionCalculator, TierManager, CommissionManager
-from .notifications import send_application_status_notification
-from .utils import log_action
+from django.contrib.auth.models import Permission
+from django.contrib.contenttypes.models import ContentType
+from artist.models import Artist, TierConfiguration, ReferralLink, Commission, CommissionSettings
+from artist.services.commission import CommissionService, CommissionManager
+from artist.notifications import send_application_status_notification
+from artist.utils import log_action
 from saleor.order.models import Order
 from saleor.product.models import Product
 from decimal import Decimal
@@ -13,7 +15,11 @@ from django.db import transaction
 
 class BaseArtistAdminAction(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
-        return request.user.has_perm('artist.can_approve_artists') or request.user.has_perm('artist.can_reject_artists')
+        user = request.user
+        return user.is_active and user.is_staff and (
+            user.has_perm('artist.can_approve_artists') or 
+            user.has_perm('artist.can_reject_artists')
+        )
 
     def message_user(self, request, message, level='ERROR'):
         super().message_user(request, message, level=level)

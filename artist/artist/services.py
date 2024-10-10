@@ -1,5 +1,5 @@
 from decimal import Decimal
-from .models import Artist, TierConfiguration, ReferralLink, Commission, CommissionSettings
+from artist.models import Artist, TierConfiguration, ReferralLink, Commission, CommissionSettings
 from saleor.order.models import OrderLine
 from saleor.product.models import Product
 from django.utils import timezone
@@ -11,9 +11,10 @@ from saleor.discount.models import Voucher
 from saleor.order.models import Order
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .services.commission import CommissionService
-
+from artist.services.commission import CommissionService
+'''
 class CommissionCalculator:
+      
     def calculate_commission(self, order_line: OrderLine, artist: Artist) -> Decimal:
         """
         Calculates the commission for an order line based on the highest applicable commission rate.
@@ -39,7 +40,7 @@ class CommissionCalculator:
             return order_line.unit_price * highest_commission_rate / 100
         else:
             return 0
-
+    
     def get_product_type_commission(self, product_type: ProductType, commission_settings: CommissionSettings) -> Decimal:
         """
         Retrieves the commission rate for a specific product type.
@@ -73,7 +74,7 @@ class CommissionCalculator:
     def credit_commission_to_wallet(self, artist: Artist, amount: Decimal):
         artist.commission_wallet += amount
         artist.save()
-
+'''
 class TierService:
     def get_tier(self, artist: Artist) -> TierConfiguration:
         use_percentile = TierConfiguration.objects.first().use_percentile

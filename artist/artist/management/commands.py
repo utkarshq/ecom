@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from .tasks import update_artist_tiers
+from artist.artist.tasks import update_artist_tiers
 
 class Command(BaseCommand):
     help = 'Update artist tiers'

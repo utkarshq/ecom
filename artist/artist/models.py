@@ -8,13 +8,16 @@ from django.dispatch import receiver
 from saleor.product.models import Product
 from django.core.validators import MinValueValidator
 from django.utils.translation import gettext_lazy as _
+from django.contrib.auth.models import Permission
 import uuid
 from saleor.discount.models import Voucher
 from saleor.product.models import Product
 from django.utils import timezone
 import random
+from saleor.product.models import ProductType
 import string
 from django.db.models import Sum
+
 
 User = get_user_model()
 
@@ -39,7 +42,10 @@ class TierConfiguration(models.Model):
 
     class Meta:
         ordering = ['tier_level']
-        permissions = [('can_view_commission_wallet', 'Can view commission wallet')]
+        permissions = [('can_view_commission_wallet', 'Can view commission wallet'),
+                       ("can_approve_artists", "Can approve artist applications"),
+                       ("can_reject_artists", "Can reject artist applications"),
+                       ("is_artist", "Is an artist"),]
 
 class Artist(models.Model):
     """
@@ -86,15 +92,15 @@ class Artist(models.Model):
     portfolio_url = models.URLField(blank=True)
     bio = models.TextField(blank=True)
     social_links = models.JSONField(blank=True, default=dict)
+    artworks = models.ManyToManyField('Artwork', related_name='artists', blank=True)
     tier = models.ForeignKey(TierConfiguration, on_delete=models.SET_NULL, null=True, blank=True, related_name='artists', default=TierConfiguration.objects.get(tier='NEW').id)
     application_status = models.CharField(max_length=10, choices=APPLICATION_STATUS_CHOICES, default='PENDING')
     application_date = models.DateTimeField(auto_now_add=True)
     approval_date = models.DateTimeField(null=True, blank=True)
+    commission = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_commission = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     legal_documents = models.FileField(upload_to='artist_legal_documents', blank=True)
-    artworks = models.ManyToManyField('Artwork', related_name='artists', blank=True)
-    total_commission = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     tier_update_date = models.DateTimeField(null=True, blank=True)
     commission_wallet = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
@@ -149,6 +155,7 @@ class ReferralLink(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     used = models.BooleanField(default=False)
+    commission = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     def __str__(self):
         return f"Referral Link for {self.product.name} by {self.artist.legal_name}"

@@ -7,6 +7,7 @@ from saleor.product.models import Product
 from django.utils import timezone
 from django.contrib.admin.models import LogEntry
 from django.contrib.contenttypes.models import ContentType
+from .models import TierConfiguration
 
 def get_artist_products(artist: Artist) -> list[Product]:
     return list(Product.objects.filter(pk__in=artist.artworks.values('saleor_product_id')))
@@ -49,3 +50,12 @@ def update_artwork(artwork: Artwork, title: str, description: str, image: str, i
     artwork.dimensions = dimensions
     artwork.save()
     return artwork
+
+def update_artist_tier(artist):
+    """Updates an artist's tier and resets voucher quota."""
+    # ... (Logic to determine and update the artist's tier) ...
+
+    # Reset voucher quota based on the new tier
+    new_tier = artist.tier  # Assuming the tier has been updated
+    artist.tier_configuration.remaining_referral_vouchers = new_tier.max_referral_vouchers_per_month
+    artist.tier_configuration.save()

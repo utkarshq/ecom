@@ -1,17 +1,48 @@
 from django.contrib import admin
 from django.contrib.auth.models import Permission
 from django.contrib.contenttypes.models import ContentType
-from artist.models import Artist, TierConfiguration, ReferralLink, Commission, CommissionSettings
+from artist.models import Artist, TierConfiguration, ReferralLink, Commission, CommissionSettings, CommissionRate
 from artist.services.commission import CommissionService, CommissionManager
 from artist.notifications import send_application_status_notification
 from artist.utils import log_action
-from saleor.order.models import Order
-from saleor.product.models import Product
-from decimal import Decimal
 from saleor.order.models import OrderLine
 from django.utils import timezone
 from django.db.models import Sum
 from django.db import transaction
+from artist.artist.models import ReferralRate
+from saleor.product.models import ProductType, Product
+from decimal import Decimal
+
+# The following imports are not used in the code:
+# from django.contrib.auth.models import Permission
+# from django.contrib.contenttypes.models import ContentType
+
+# The following imports are not used in the code:
+# from saleor.order.models import Order
+
+# The following imports are not used in the code:
+# from artist.services.commission import CommissionService
+
+# The following imports are not used in the code:
+# from artist.utils import log_action
+
+# The following imports are not used in the code:
+# from decimal import Decimal
+
+# The following imports are not used in the code:
+# from django.utils import timezone
+
+# The following imports are not used in the code:
+# from django.db.models import Sum
+
+# The following imports are not used in the code:
+# from django.db import transaction
+
+# The following imports are not used in the code:
+# from artist.artist.models import ReferralRate
+
+# The following imports are not used in the code:
+# from saleor.product.models import ProductType
 
 class BaseArtistAdminAction(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
@@ -215,17 +246,6 @@ class CommissionCalculator:
             return ...  # Return the referral link commission rate
         else:
             return None
-
-class TierManager:
-    # ... (previous code) ...
-
-def generate_referral_link(artist: Artist, product: Product) -> ReferralLink:
-    referral_link, created = ReferralLink.objects.get_or_create(
-        artist=artist,
-        product=product,
-        defaults={'expires_at': timezone.now() + timezone.timedelta(days=7)}
-    )
-    return referral_link
 
 @admin.register(CommissionSettings)
 class CommissionSettingsAdmin(admin.ModelAdmin):

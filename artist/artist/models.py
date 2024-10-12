@@ -17,6 +17,9 @@ import random
 from saleor.product.models import ProductType
 import string
 from django.db.models import Sum
+from saleor.account.models import User
+from .artist import Artist
+from decimal import Decimal
 
 
 User = get_user_model()
@@ -35,6 +38,17 @@ class TierConfiguration(models.Model):
     commission_rate = models.DecimalField(max_digits=5, decimal_places=2)
     tier_info = models.TextField(blank=True)
     tier_perks = models.JSONField(default=list, blank=True)
+    max_referral_vouchers_per_month = models.PositiveIntegerField(
+        default=0, 
+        help_text="Maximum vouchers an artist in this tier can issue monthly."
+    )
+    referral_voucher_discount = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        default=Decimal('0.00'),
+        help_text="Discount percentage applied to this tier's referral vouchers."
+    )
+    remaining_referral_vouchers = models.PositiveIntegerField(default=0)
 
     def __str__(self):
         threshold_type = "Percentile" if self.use_percentile else "Sales"
@@ -149,37 +163,43 @@ class Artwork(models.Model):
         return self.title
 
 class ReferralLink(models.Model):
-    artist = models.ForeignKey(Artist, on_delete=models.CASCADE)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    code = models.CharField(max_length=16, unique=True)
+    artist = models.ForeignKey(Artist, on_delete=models.CASCADE, related_name='referral_links')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True, blank=True)  # Can be null for general artist referral
+    code = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     used = models.BooleanField(default=False)
-    commission = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    referrer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='referred_links')
+    is_voucher_referral = models.BooleanField(default=False)
+    times_used_this_month = models.PositiveIntegerField(default=0)
+    token = models.CharField(max_length=64, unique=True, null=True, blank=True)
+
 
     def __str__(self):
-        return f"Referral Link for {self.product.name} by {self.artist.legal_name}"
+        return f"Referral Link for {self.artist.user.username} - {self.code}"
 
     def generate_code(self):
-        """Generates a unique 16-character random code for the referral link."""
-        while True:
-            code = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(16))
-            if not ReferralLink.objects.filter(code=code).exists():
-                return code
+        # No need for custom generation logic, UUID is handled by default
+        pass
 
     def save(self, *args, **kwargs):
         if not self.code:
             self.code = self.generate_code()
+        if not self.token:
+            self.token = self.generate_token()
         super().save(*args, **kwargs)
 
     def is_valid(self):
-        """Checks if the referral link is still valid."""
         return self.expires_at >= timezone.now() and not self.used
 
     def mark_as_used(self):
-        """Marks the referral link as used."""
         self.used = True
         self.save()
+
+    def generate_token(self):
+        # Use a more robust method like secrets.token_urlsafe() in production
+        random_string = str(uuid.uuid4())
+        return random_string
 
 @receiver(post_save, sender=Artwork)
 def create_or_update_saleor_product(sender, instance, created, **kwargs):
@@ -217,6 +237,10 @@ class CommissionSettings(models.Model):
     product_type_commissions = models.JSONField(default=dict)  # Store as {product_type_id: rate}
     tier_commissions = models.JSONField(default=dict)  # Store as {tier_name: rate}
     tier_update_frequency = models.PositiveIntegerField(default=30, help_text="Number of days between tier updates")
+    artist_referral_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('5.00'),
+        help_text="Commission rate for artists referring other artists' products."
+    )
 
     def __str__(self):
         return f"Commission Period: {self.commission_period} days"
@@ -235,3 +259,11 @@ class CommissionRate(models.Model):
 
     def __str__(self):
         return self.name
+    
+class ReferralCommission(models.Model):
+    commission = models.OneToOneField(Commission, on_delete=models.CASCADE, related_name='referral_commission')
+    referral_link = models.ForeignKey(ReferralLink, on_delete=models.SET_NULL, null=True, blank=True)
+    # Add other fields as needed, like referrer and referee details for cross-referrals
+
+    def __str__(self):
+        return f"Referral Commission - {self.commission.amount}" 

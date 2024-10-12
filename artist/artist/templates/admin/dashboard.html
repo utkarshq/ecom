@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="admin-dashboard">
+    <h1>Admin Dashboard</h1>
+
+    <div class="dashboard-section">
+        <h2>Overview</h2>
+        <p>Total Artists: {{ dashboard_data.total_artists }}</p>
+        <p>Total Sales: ${{ dashboard_data.total_sales }}</p>
+        <p>Total Commissions Paid: ${{ dashboard_data.total_commissions_paid }}</p>
+    </div>
+
+    <div class="dashboard-section">
+        <h2>Monthly Sales</h2>
+        <canvas id="monthlySalesChart"></canvas>
+    </div>
+
+    <div class="dashboard-section">
+        <h2>Artist Management</h2>
+        <a href="{% url 'admin:artist_artist_changelist' %}" class="btn btn-primary">View All Artists</a>
+    </div>
+
+    <div class="dashboard-section">
+        <h2>Commission Management</h2>
+        <a href="{% url 'admin:artist_commission_changelist' %}" class="btn btn-primary">View Commission Logs</a>
+    </div>
+
+    <div class="dashboard-section">
+        <h2>Referral Link Management</h2>
+        <a href="{% url 'admin:artist_referral_link_changelist' %}" class="btn btn-primary">Manage Referral Links</a>
+    </div>
+
+    <div class="dashboard-section">
+        <h2>Settings</h2>
+        <a href="{% url 'admin:artist_commissionsettings_changelist' %}" class="btn btn-primary">Manage Commission Settings</a>
+        <a href="{% url 'admin:artist_tierconfiguration_changelist' %}" class="btn btn-primary">Manage Artist Tiers</a>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/admin_dashboard.js' %}"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Chart.js code to display monthly sales data
+    const monthlySalesData = JSON.parse('{{ dashboard_data.monthly_sales|json_encode }}');
+    const monthlySalesLabels = monthlySalesData.map(item => item.month.strftime('%Y-%m'));
+    const monthlySalesValues = monthlySalesData.map(item => item.total_sales);
+
+    const monthlySalesChart = document.getElementById('monthlySalesChart').getContext('2d');
+    new Chart(monthlySalesChart, {
+        type: 'bar',
+        data: {
+            labels: monthlySalesLabels,
+            datasets: [{
+                label: 'Monthly Sales',
+                data: monthlySalesValues,
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

@@ -15,8 +15,8 @@
         <h2>Sales Report</h2>
         <a href="{% url 'sales_report' %}" class="btn btn-info">View Detailed Sales Report</a>
         <div class="sales-summary">
-            <p>Total Sales: ${{ total_sales }}</p>
-            <p>This Month's Sales: ${{ this_month_sales }}</p>
+            <p>Total Sales: ${{ dashboard_data.total_sales }}</p>
+            <p>This Month's Sales: ${{ dashboard_data.this_month_sales }}</p>
         </div>
     </div>
 
@@ -24,9 +24,9 @@
         <h2>Commissions</h2>
         <a href="{% url 'commission_logs' %}" class="btn btn-info">View Commission Logs</a>
         <div class="commission-summary">
-            <p>Total Commissions: ${{ total_commissions }}</p>
-            <p>Pending Commissions: ${{ pending_commissions }}</p>
-            <p>Available for Payout: ${{ available_for_payout }}</p>
+            <p>Total Commissions: ${{ dashboard_data.total_commissions }}</p>
+            <p>Pending Commissions: ${{ dashboard_data.pending_commissions }}</p>
+            <p>Available for Payout: ${{ dashboard_data.available_for_payout }}</p>
         </div>
     </div>
 
@@ -40,6 +40,7 @@
     <div class="dashboard-section">
         <h2>Referral Links</h2>
         <a href="{% url 'referral_links' %}" class="btn btn-primary">Manage Referral Links</a>
+        <p>You have {{ dashboard_data.referral_links }} active referral links.</p>
     </div>
 
     <div class="dashboard-section">

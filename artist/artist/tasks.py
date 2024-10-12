@@ -1,7 +1,6 @@
 from celery import shared_task
 from .models import Artist
-from ..services.tier import TierService
-from .services import TierService
+from artist.artist.services import TierService
 
 @shared_task
 def update_artist_tiers():

@@ -8,8 +8,9 @@ from django.dispatch import receiver
 from django.contrib.admin.models import LogEntry, CHANGE
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import Sum
 
-class CommissionService:
+class CommissionService: 
     @staticmethod
     def calculate_commission(order_line: OrderLine, artist: Artist) -> Decimal:
         """
@@ -29,6 +30,17 @@ class CommissionService:
 
         commission_rates = [product_type_commission, sales_type_commission, tier_commission]
         highest_commission_rate = max(filter(None, commission_rates), default=0)
+
+        # Referral Commission
+        referral_code = order_line.order.metadata.get('referral_code')
+        if referral_code:
+            try:
+                referral_link = ReferralLink.objects.get(code=referral_code)
+                commission_amount = CommissionService.calculate_referral_commission(order_line, referral_link)
+                highest_commission_rate += commission_amount
+            except ReferralLink.DoesNotExist:
+                # Handle case where referral link is not found (e.g., log error)
+                print(f"Referral link with code {referral_code} not found.")
 
         return order_line.unit_price_gross * highest_commission_rate / 100
 
@@ -91,10 +103,11 @@ class CommissionService:
             order_line: The order line for which the commission is being created.
             artist: The artist associated with the order line.
         """
-        commission_amount = CommissionService.calculate_commission(order_line, artist)
+        commission_service = CommissionService()
+        commission_amount = commission_service.calculate_commission(order_line, artist)
         if commission_amount > 0:
             Commission.objects.create(
-                artist=artist,
+                artist=artist.user,
                 order_line=order_line,
                 amount=commission_amount
             )
@@ -122,6 +135,30 @@ class CommissionService:
                 commission.status = 'PAID'
                 commission.paid_at = timezone.now()
                 commission.save()
+
+    def calculate_cross_referral_commission(self, order_line: OrderLine, referral_link: ReferralLink):
+        """Calculates and creates commissions for cross-referral scenarios."""
+        commission_settings = CommissionSettings.objects.first()
+
+        referrer_commission_amount = (order_line.unit_price * commission_settings.artist_referral_rate) / Decimal(100)
+        referee_commission_amount = (order_line.unit_price * commission_settings.referee_commission_rate) / Decimal(100)
+
+        self._create_commission(referral_link.referrer, order_line, referrer_commission_amount)
+        self._create_commission(referral_link.product.artist, order_line, referee_commission_amount)
+
+    def _create_commission(self, artist: Artist, order_line: OrderLine, amount: Decimal):
+        """Creates a new Commission instance."""
+        Commission.objects.create(
+            artist=artist,
+            order_line=order_line,
+            amount=amount,
+        )
+
+    def calculate_referral_commission(self, order_line: OrderLine, referral_link: ReferralLink) -> Decimal:
+        referral_rate = ReferralRate.objects.get(
+            product_type=order_line.product.product_type
+        ).rate
+        return (order_line.unit_price * referral_rate) / Decimal(100)
 
 # Signal handlers will call the CommissionService methods
 @receiver(post_save, sender=OrderLine)
@@ -229,6 +266,17 @@ class CommissionManager:
             action_flag=CHANGE,
             change_message=f"Commission paid: ${commission.amount} to artist {commission.artist.username}"
         )
+        
+    @staticmethod
+    def recalculate_artist_commissions(artist):
+        """
+        Recalculates all commissions for a given artist.
+        """
+        commissions = Commission.objects.filter(artist=artist)
+        for commission in commissions:
+            order_line = commission.order_line
+            commission.amount = CommissionService.calculate_commission(order_line, artist)
+            commission.save()
 
 class CommissionSettings(models.Model):
     """

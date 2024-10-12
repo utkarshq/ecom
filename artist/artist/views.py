@@ -6,16 +6,17 @@ from .models import Artist, ReferralLink, Artwork, Commission
 from .forms import ArtworkForm, ArtistApplicationForm, ArtistLegalDocumentsForm
 from .utils import create_artwork, update_artwork, log_action
 from artist.services.commission import CommissionService
-from artist.services.commission import TierService
-from artist.services.commission import ReferralLinkService
+from artist.artist.services import TierService
+from artist.artist.services import ReferralLinkService
 from saleor.product.models import Product
 from django.http import HttpResponseServerError
 from ..exceptions import ArtistNotFoundException, ArtworkNotFoundException, InvalidCommissionRateError
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Sum
 from django.db.models.functions import TruncMonth
-from artist.artist.utils.dashboard_utils import get_dashboard_data
+from artist.artist.utils.dashboard_utils import get_dashboard_data, get_artist_dashboard_data, get_admin_dashboard_data
 from django.contrib.auth.decorators import permission_required
+from artist.services.referral import ReferralService
 
 @login_required
 def artwork_list(request):
@@ -253,3 +254,54 @@ def commission_wallet(request):
         'recent_commissions': Commission.objects.filter(artist=artist, status='CREDITED').order_by('-paid_at')[:10]
     }
     return render(request, 'artist/commission_wallet.html', context)
+
+@login_required
+def artist_dashboard(request):
+    try:
+        artist = Artist.objects.get(user=request.user)
+    except Artist.DoesNotExist:
+        raise ArtistNotFoundException("Artist profile not found for this user.")
+    dashboard_data = get_artist_dashboard_data(artist)
+    context = {
+        'artist': artist,
+        'dashboard_data': dashboard_data,
+    }
+    return render(request, 'artist/artist_dashboard.html', context)
+
+@permission_required('artist.can_manage_commissions')
+def admin_dashboard(request):
+    dashboard_data = get_admin_dashboard_data()
+    context = {
+        'dashboard_data': dashboard_data,
+    }
+    return render(request, 'admin/dashboard.html', context)
+
+@login_required
+def artist_profile(request):
+    try:
+        artist = Artist.objects.get(user=request.user)
+    except Artist.DoesNotExist:
+        raise ArtistNotFoundException("Artist profile not found for this user.")
+    context = {
+        'artist': artist,
+        # Include artwork display logic here
+    }
+    return render(request, 'artist/artist_profile.html', context)
+
+def some_artist_action_view(request, artist_id):
+    artist = get_object_or_404(Artist, pk=artist_id)
+    product_id = request.POST.get('product_id')  # Assuming you get product_id from the request
+    product = get_object_or_404(Product, pk=product_id)
+
+    referral_link, created = ReferralLink.objects.get_or_create(
+        artist=artist,
+        product=product,
+    )
+
+    if created:
+        referral_link.save()  # This will generate the token if it doesn't exist
+
+    referral_token = referral_link.token
+    referral_url = f"https://{request.get_host()}/products/{product.id}?ref={referral_token}"
+
+    # ... rest of your view logic to handle the referral_url ...
